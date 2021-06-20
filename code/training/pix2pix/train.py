@@ -29,9 +29,9 @@ import datetime
 
 from matplotlib import pyplot as plt
 
-from data_processing import *
-from discriminator import *
-from generator import *
+import data_processing as dt
+import discriminator as ds
+import generator as gn
 
 _URL = 'https://people.eecs.berkeley.edu/~tinghuiz/projects/pix2pix/datasets/facades.tar.gz'
 
@@ -44,14 +44,14 @@ PATH = os.path.join(os.path.dirname(path_to_zip), 'facades/')
 
 
 train_dataset = tf.data.Dataset.list_files(PATH + 'train/*.jpg')
-train_dataset = train_dataset.map(load_image_train,
+train_dataset = train_dataset.map(dt.load_image_train,
                                   num_parallel_calls=tf.data.AUTOTUNE)
-train_dataset = train_dataset.shuffle(BUFFER_SIZE)
-train_dataset = train_dataset.batch(BATCH_SIZE)
+train_dataset = train_dataset.shuffle(dt.BUFFER_SIZE)
+train_dataset = train_dataset.batch(dt.BATCH_SIZE)
 
 test_dataset = tf.data.Dataset.list_files(PATH + 'test/*.jpg')
-test_dataset = test_dataset.map(load_image_test)
-test_dataset = test_dataset.batch(BATCH_SIZE)
+test_dataset = test_dataset.map(dt.load_image_test)
+test_dataset = test_dataset.batch(dt.BATCH_SIZE)
 
 
 generator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
@@ -82,8 +82,8 @@ def train_step(input_image, target, epoch):
         disc_real_output = discriminator([input_image, target], training=True)
         disc_generated_output = discriminator([input_image, gen_output], training=True)
 
-        gen_total_loss, gen_gan_loss, gen_l1_loss = generator_loss(disc_generated_output, gen_output, target)
-        disc_loss = discriminator_loss(disc_real_output, disc_generated_output)
+        gen_total_loss, gen_gan_loss, gen_l1_loss = gn.generator_loss(disc_generated_output, gen_output, target)
+        disc_loss = ds.discriminator_loss(disc_real_output, disc_generated_output)
 
     generator_gradients = gen_tape.gradient(gen_total_loss,
                                             generator.trainable_variables)
@@ -128,8 +128,8 @@ def fit(train_ds, epochs, test_ds):
 
 
 if __name__ == '__main__':
-    discriminator = Discriminator()
-    generator = Generator()
+    discriminator = ds.Discriminator()
+    generator = gn.Generator()
 
     # for example_input, example_target in test_dataset.take(1):
     #     generate_images(generator, example_input, example_target)

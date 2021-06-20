@@ -22,7 +22,7 @@ Code samples modified slightly to break into separate modules.
 
 import tensorflow as tf
 
-from data_processing import *
+import data_processing as dt
 
 
 OUTPUT_CHANNELS = 3
