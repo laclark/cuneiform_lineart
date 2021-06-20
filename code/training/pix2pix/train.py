@@ -33,26 +33,6 @@ import data_processing as dt
 import discriminator as ds
 import generator as gn
 
-_URL = 'https://people.eecs.berkeley.edu/~tinghuiz/projects/pix2pix/datasets/facades.tar.gz'
-
-# path_to_zip = tf.keras.utils.get_file('facades.tar.gz',
-                                      # origin=_URL,
-                                      # extract=True)
-
-path_to_zip = 'C:\\Users\\laine\\.keras\\datasets\\facades.tar.gz'
-PATH = os.path.join(os.path.dirname(path_to_zip), 'facades/')
-
-
-train_dataset = tf.data.Dataset.list_files(PATH + 'train/*.jpg')
-train_dataset = train_dataset.map(dt.load_image_train,
-                                  num_parallel_calls=tf.data.AUTOTUNE)
-train_dataset = train_dataset.shuffle(dt.BUFFER_SIZE)
-train_dataset = train_dataset.batch(dt.BATCH_SIZE)
-
-test_dataset = tf.data.Dataset.list_files(PATH + 'test/*.jpg')
-test_dataset = test_dataset.map(dt.load_image_test)
-test_dataset = test_dataset.batch(dt.BATCH_SIZE)
-
 
 generator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
 discriminator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
@@ -133,6 +113,9 @@ if __name__ == '__main__':
 
     # for example_input, example_target in test_dataset.take(1):
     #     generate_images(generator, example_input, example_target)
+
+    config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'training_data.json')
+    train_dataset, test_dataset = dt.prepare_datasets(config_path)
 
     checkpoint_dir = './training_checkpoints'
     checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
