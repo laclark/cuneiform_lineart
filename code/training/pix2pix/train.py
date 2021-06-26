@@ -20,9 +20,8 @@ Code samples modified slightly to break into separate modules.
 
 """
 
-
 import tensorflow as tf
-
+import json
 import os
 import time
 import datetime
@@ -36,6 +35,23 @@ import generator as gn
 
 generator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
 discriminator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
+
+
+def read_configuration(config_path):
+    with open(config_path, 'r') as f:
+        configs = json.load(f) 
+        return configs['training'], configs['dataset']
+
+
+def create_training_dir(training_config):
+
+    checkpoint_dir = os.path.join(training_config['training_dir'], 
+                                  training_config['model_name'],
+                                  'ckpts')
+    log_dir = os.path.join(training_config['training_dir'], 
+                           training_config['model_name'],
+                           'tf_event_logs')
+    return log_dir, checkpoint_dir
 
 
 def generate_images(model, test_input, tar):
@@ -99,12 +115,11 @@ def fit(train_ds, epochs, test_ds):
         print()
 
         # Saving (checkpointing) the model every 20 epochs
-        if (epoch + 1) % 5 == 0:
+        if (epoch + 1) % 1 == 0:
             checkpoint.save(file_prefix=checkpoint_prefix)
 
         print('Time taken for epoch {} is {} sec\n'.format(epoch + 1,
                                                            time.time()-start))
-    checkpoint.save(file_prefix=checkpoint_prefix)
 
 
 if __name__ == '__main__':
@@ -115,9 +130,11 @@ if __name__ == '__main__':
     #     generate_images(generator, example_input, example_target)
 
     config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'training_data.json')
-    train_dataset, test_dataset = dt.prepare_datasets(config_path)
+    training_config, dataset_config = read_configuration(config_path)
+    log_dir, checkpoint_dir = create_training_dir(training_config)
 
-    checkpoint_dir = './training_checkpoints'
+    train_dataset, test_dataset = dt.prepare_datasets(dataset_config)
+
     checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
     checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
                                      discriminator_optimizer=discriminator_optimizer,
@@ -125,9 +142,7 @@ if __name__ == '__main__':
                                      discriminator=discriminator)
 
     EPOCHS = 50
-    log_dir="logs/"
 
-    summary_writer = tf.summary.create_file_writer(
-        log_dir + "fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+    summary_writer = tf.summary.create_file_writer(log_dir)
 
     fit(train_dataset, EPOCHS, test_dataset)

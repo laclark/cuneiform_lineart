@@ -157,11 +157,6 @@ def load_image_test(path_tuple):
     return input_image, target_image
 
 
-def read_dataset_config(config_path):
-    with open(config_path, 'r') as f:
-        return json.load(f)
-
-
 def get_image_paths(parent_dir):
 
     image_paths = []
@@ -176,8 +171,7 @@ def get_image_paths(parent_dir):
     return paired_paths
 
 
-def prepare_datasets(config_path):
-    data_config = read_dataset_config(config_path)
+def prepare_datasets(data_config):
     parent_dir, buffer_size, batch_size = (data_config['parent_directory'], 
                                            data_config['buffer_size'],  
                                            data_config['batch_size'])
