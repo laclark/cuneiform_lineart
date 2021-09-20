@@ -33,8 +33,8 @@ import lineart_generator.pix2pix.discriminator as ds
 import lineart_generator.pix2pix.generator as gn
 
 
-generator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
-discriminator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
+GENERATOR_OPTIMIZER = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
+DISCRIMINATOR_OPTIMIZER = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
 
 DISCRIMINATOR = ds.Discriminator()
 GENERATOR = gn.Generator()
@@ -107,16 +107,25 @@ def train_step(input_image, target, epoch):
     discriminator_gradients = disc_tape.gradient(disc_loss,
                                                  DISCRIMINATOR.trainable_variables)
 
-    generator_optimizer.apply_gradients(zip(generator_gradients,
+    GENERATOR_OPTIMIZER.apply_gradients(zip(generator_gradients,
                                             GENERATOR.trainable_variables))
-    discriminator_optimizer.apply_gradients(zip(discriminator_gradients,
+    DISCRIMINATOR_OPTIMIZER.apply_gradients(zip(discriminator_gradients,
                                             DISCRIMINATOR.trainable_variables))
 
-    return gen_total_loss, gen_gan_loss, gen_l1_loss, disc_loss
+    return {'gen_total_loss': gen_total_loss, 
+            'gen_gan_loss': gen_gan_loss,
+            'gen_l1_loss': gen_l1_loss,
+            'disc_loss': disc_loss}    
+
+
+def add_losses_to_summary(summary_writer, losses, step):
+    with summary_writer.as_default():
+        for name, loss in losses.items():
+            tf.summary.scalar(name, loss, step=step)
 
 
 def fit(checkpoint, summary_writer, epochs, train_ds, test_ds):
-    step = 0
+    global_step = 0
 
     for epoch in range(epochs):
         start = time.time()
@@ -127,7 +136,7 @@ def fit(checkpoint, summary_writer, epochs, train_ds, test_ds):
             figs.append(generate_image(GENERATOR, example_input, example_target))
 
         with summary_writer.as_default():
-            tf.summary.image(f"Test data, Epoch {epoch}", fig_to_tf_summary(figs), step=step)
+            tf.summary.image(f"Test data, Epoch {epoch}", fig_to_tf_summary(figs), step=global_step)
 
         print("Epoch: ", epoch)
 
@@ -136,17 +145,12 @@ def fit(checkpoint, summary_writer, epochs, train_ds, test_ds):
             print('.', end='')
             if (n+1) % 100 == 0:
                 print()
-            gen_total_loss, gen_gan_loss, gen_l1_loss, disc_loss = train_step(input_image, target, epoch)
-
-            with summary_writer.as_default():
-                tf.summary.scalar('gen_total_loss', gen_total_loss, step=epoch)
-                tf.summary.scalar('gen_gan_loss', gen_gan_loss, step=epoch)
-                tf.summary.scalar('gen_l1_loss', gen_l1_loss, step=epoch)
-                tf.summary.scalar('disc_loss', disc_loss, step=epoch)
-
+            losses = train_step(input_image, target, epoch)
+            add_losses_to_summary(summary_writer, losses, global_step + n.numpy() + 1)
+            
         print()
         
-        step += n
+        global_step += n.numpy()
 
         # Saving (checkpointing) the model every 20 epochs
         if (epoch + 1) % 1 == 0:
@@ -155,19 +159,22 @@ def fit(checkpoint, summary_writer, epochs, train_ds, test_ds):
         print('Time taken for epoch {} is {} sec\n'.format(epoch + 1,
                                                            time.time()-start))
 
+
+def name_checkpoint(dir):
+    return os.path.join(dir, "ckpt")
+
+
 def train_lineart_generator(epochs, config_path):
-
-
     training_config, dataset_config = read_configuration(config_path)
     log_dir, checkpoint_dir = create_training_dir(training_config)
 
     train_dataset, test_dataset = dt.prepare_datasets(dataset_config)
 
-    checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
-                                     discriminator_optimizer=discriminator_optimizer,
+    checkpoint = tf.train.Checkpoint(generator_optimizer=GENERATOR_OPTIMIZER,
+                                     discriminator_optimizer=DISCRIMINATOR_OPTIMIZER,
                                      generator=GENERATOR,
                                      discriminator=DISCRIMINATOR)
-    checkpoint.ckpt_prefix = os.path.join(checkpoint_dir, "ckpt")
+    checkpoint.ckpt_prefix = name_checkpoint(checkpoint_dir)
 
     summary_writer = tf.summary.create_file_writer(log_dir)
 
@@ -177,6 +184,6 @@ def train_lineart_generator(epochs, config_path):
 if __name__ == '__main__':
 
     config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'training_data.json')
-    epochs = 50
+    epochs = 10
 
     train_lineart_generator(epochs, config_path)
