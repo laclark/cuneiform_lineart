@@ -22,7 +22,7 @@ Code samples modified slightly to break into separate modules.
 
 import tensorflow as tf
 
-import generator as gn
+import lineart_generator.pix2pix.generator as gn
 
 
 def Discriminator():

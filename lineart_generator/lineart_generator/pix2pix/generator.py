@@ -22,7 +22,7 @@ Code samples modified slightly to break into separate modules.
 
 import tensorflow as tf
 
-import data_processing as dt
+import lineart_generator.pix2pix.data_processing as dt
 
 
 OUTPUT_CHANNELS = 3

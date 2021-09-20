@@ -28,13 +28,16 @@ import datetime
 
 from matplotlib import pyplot as plt
 
-import data_processing as dt
-import discriminator as ds
-import generator as gn
+import lineart_generator.pix2pix.data_processing as dt
+import lineart_generator.pix2pix.discriminator as ds
+import lineart_generator.pix2pix.generator as gn
 
 
 generator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
 discriminator_optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
+
+DISCRIMINATOR = ds.Discriminator()
+GENERATOR = gn.Generator()
 
 
 def read_configuration(config_path):
@@ -91,32 +94,28 @@ def fig_to_tf_summary(figs):
 @tf.function
 def train_step(input_image, target, epoch):
     with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
-        gen_output = generator(input_image, training=True)
+        gen_output = GENERATOR(input_image, training=True)
 
-        disc_real_output = discriminator([input_image, target], training=True)
-        disc_generated_output = discriminator([input_image, gen_output], training=True)
+        disc_real_output = DISCRIMINATOR([input_image, target], training=True)
+        disc_generated_output = DISCRIMINATOR([input_image, gen_output], training=True)
 
         gen_total_loss, gen_gan_loss, gen_l1_loss = gn.generator_loss(disc_generated_output, gen_output, target)
         disc_loss = ds.discriminator_loss(disc_real_output, disc_generated_output)
 
     generator_gradients = gen_tape.gradient(gen_total_loss,
-                                            generator.trainable_variables)
+                                            GENERATOR.trainable_variables)
     discriminator_gradients = disc_tape.gradient(disc_loss,
-                                                 discriminator.trainable_variables)
+                                                 DISCRIMINATOR.trainable_variables)
 
     generator_optimizer.apply_gradients(zip(generator_gradients,
-                                            generator.trainable_variables))
+                                            GENERATOR.trainable_variables))
     discriminator_optimizer.apply_gradients(zip(discriminator_gradients,
-                                            discriminator.trainable_variables))
+                                            DISCRIMINATOR.trainable_variables))
 
-    with summary_writer.as_default():
-        tf.summary.scalar('gen_total_loss', gen_total_loss, step=epoch)
-        tf.summary.scalar('gen_gan_loss', gen_gan_loss, step=epoch)
-        tf.summary.scalar('gen_l1_loss', gen_l1_loss, step=epoch)
-        tf.summary.scalar('disc_loss', disc_loss, step=epoch)
+    return gen_total_loss, gen_gan_loss, gen_l1_loss, disc_loss
 
 
-def fit(train_ds, epochs, test_ds):
+def fit(checkpoint, summary_writer, epochs, train_ds, test_ds):
     step = 0
 
     for epoch in range(epochs):
@@ -125,7 +124,7 @@ def fit(train_ds, epochs, test_ds):
         num_summary_ims = 5
         figs = []
         for example_input, example_target in test_ds.take(num_summary_ims):
-            figs.append(generate_image(generator, example_input, example_target))
+            figs.append(generate_image(GENERATOR, example_input, example_target))
 
         with summary_writer.as_default():
             tf.summary.image(f"Test data, Epoch {epoch}", fig_to_tf_summary(figs), step=step)
@@ -137,37 +136,47 @@ def fit(train_ds, epochs, test_ds):
             print('.', end='')
             if (n+1) % 100 == 0:
                 print()
-            train_step(input_image, target, epoch)
+            gen_total_loss, gen_gan_loss, gen_l1_loss, disc_loss = train_step(input_image, target, epoch)
+
+            with summary_writer.as_default():
+                tf.summary.scalar('gen_total_loss', gen_total_loss, step=epoch)
+                tf.summary.scalar('gen_gan_loss', gen_gan_loss, step=epoch)
+                tf.summary.scalar('gen_l1_loss', gen_l1_loss, step=epoch)
+                tf.summary.scalar('disc_loss', disc_loss, step=epoch)
+
         print()
         
         step += n
 
         # Saving (checkpointing) the model every 20 epochs
         if (epoch + 1) % 1 == 0:
-            checkpoint.save(file_prefix=checkpoint_prefix)
+            checkpoint.save(file_prefix=checkpoint.ckpt_prefix)
 
         print('Time taken for epoch {} is {} sec\n'.format(epoch + 1,
                                                            time.time()-start))
 
+def train_lineart_generator(epochs, config_path):
 
-if __name__ == '__main__':
-    discriminator = ds.Discriminator()
-    generator = gn.Generator()
 
-    config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'training_data.json')
     training_config, dataset_config = read_configuration(config_path)
     log_dir, checkpoint_dir = create_training_dir(training_config)
 
     train_dataset, test_dataset = dt.prepare_datasets(dataset_config)
 
-    checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
     checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
                                      discriminator_optimizer=discriminator_optimizer,
-                                     generator=generator,
-                                     discriminator=discriminator)
-
-    EPOCHS = 50
+                                     generator=GENERATOR,
+                                     discriminator=DISCRIMINATOR)
+    checkpoint.ckpt_prefix = os.path.join(checkpoint_dir, "ckpt")
 
     summary_writer = tf.summary.create_file_writer(log_dir)
 
-    fit(train_dataset, EPOCHS, test_dataset)
+    fit(checkpoint, summary_writer, epochs, train_dataset, test_dataset)
+
+
+if __name__ == '__main__':
+
+    config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'training_data.json')
+    epochs = 50
+
+    train_lineart_generator(epochs, config_path)
