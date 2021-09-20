@@ -124,6 +124,13 @@ def add_losses_to_summary(summary_writer, losses, step):
             tf.summary.scalar(name, loss, step=step)
 
 
+def save_checkpoint(checkpoint, epoch, frequency):
+    def name_checkpoint():
+        return os.path.join(checkpoint.dir, f"epoch_{epoch + 1:05d}")
+    if (epoch + 1) % frequency == 0:
+        checkpoint.save(file_prefix=name_checkpoint())
+
+
 def fit(checkpoint, summary_writer, epochs, train_ds, test_ds):
     global_step = 0
 
@@ -148,20 +155,15 @@ def fit(checkpoint, summary_writer, epochs, train_ds, test_ds):
             losses = train_step(input_image, target, epoch)
             add_losses_to_summary(summary_writer, losses, global_step + n.numpy() + 1)
             
+        frequency = 5
+        save_checkpoint(checkpoint, epoch, frequency)
+
         print()
         
         global_step += n.numpy()
 
-        # Saving (checkpointing) the model every 20 epochs
-        if (epoch + 1) % 1 == 0:
-            checkpoint.save(file_prefix=checkpoint.ckpt_prefix)
-
         print('Time taken for epoch {} is {} sec\n'.format(epoch + 1,
                                                            time.time()-start))
-
-
-def name_checkpoint(dir):
-    return os.path.join(dir, "ckpt")
 
 
 def train_lineart_generator(epochs, config_path):
@@ -174,7 +176,7 @@ def train_lineart_generator(epochs, config_path):
                                      discriminator_optimizer=DISCRIMINATOR_OPTIMIZER,
                                      generator=GENERATOR,
                                      discriminator=DISCRIMINATOR)
-    checkpoint.ckpt_prefix = name_checkpoint(checkpoint_dir)
+    checkpoint.dir = checkpoint_dir
 
     summary_writer = tf.summary.create_file_writer(log_dir)
 
