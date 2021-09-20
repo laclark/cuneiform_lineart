@@ -19,7 +19,7 @@
 Code samples modified slightly to break into separate modules.
 
 """
-
+import io
 import tensorflow as tf
 import json
 import os
@@ -54,20 +54,38 @@ def create_training_dir(training_config):
     return log_dir, checkpoint_dir
 
 
-def generate_images(model, test_input, tar):
+def generate_image(model, test_input, tar):
     prediction = model(test_input, training=True)
-    plt.figure(figsize=(15, 15))
 
     display_list = [test_input[0], tar[0], prediction[0]]
     title = ['Input Image', 'Ground Truth', 'Predicted Image']
 
-    # for i in range(3):
-    #     plt.subplot(1, 3, i+1)
-    #     plt.title(title[i])
-    #     # Getting the pixel values in the [0, 1] range to plot.
-    #     plt.imshow(display_list[i] * 0.5 + 0.5)
-    #     plt.axis('off')
-    # plt.show()
+    fig, axes = plt.subplots(1, 3)
+
+    for i in range(3):
+        axes[i].set_title(title[i])
+        # Getting the pixel values in the [0, 1] range to plot.
+        axes[i].imshow(display_list[i] * 0.5 + 0.5)
+        axes[i].set_axis_off()
+    
+    return fig
+
+
+def fig_to_tf_summary(figs):
+
+    im_tensors = []
+
+    for fig in figs:
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png')
+        plt.close(fig)
+        buf.seek(0)
+        im_tensor = tf.image.decode_png(buf.getvalue(), channels=4)
+        im_tensors.append(tf.expand_dims(im_tensor, axis=0))
+
+    summary_ims = tf.concat(im_tensors, axis=0)
+
+    return summary_ims
 
 
 @tf.function
@@ -99,11 +117,19 @@ def train_step(input_image, target, epoch):
 
 
 def fit(train_ds, epochs, test_ds):
+    step = 0
+
     for epoch in range(epochs):
         start = time.time()
 
-        for example_input, example_target in test_ds.take(1):
-            generate_images(generator, example_input, example_target)
+        num_summary_ims = 5
+        figs = []
+        for example_input, example_target in test_ds.take(num_summary_ims):
+            figs.append(generate_image(generator, example_input, example_target))
+
+        with summary_writer.as_default():
+            tf.summary.image(f"Test data, Epoch {epoch}", fig_to_tf_summary(figs), step=step)
+
         print("Epoch: ", epoch)
 
         # Training step
@@ -113,6 +139,8 @@ def fit(train_ds, epochs, test_ds):
                 print()
             train_step(input_image, target, epoch)
         print()
+        
+        step += n
 
         # Saving (checkpointing) the model every 20 epochs
         if (epoch + 1) % 1 == 0:
@@ -125,9 +153,6 @@ def fit(train_ds, epochs, test_ds):
 if __name__ == '__main__':
     discriminator = ds.Discriminator()
     generator = gn.Generator()
-
-    # for example_input, example_target in test_dataset.take(1):
-    #     generate_images(generator, example_input, example_target)
 
     config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'training_data.json')
     training_config, dataset_config = read_configuration(config_path)
