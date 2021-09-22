@@ -1,3 +1,4 @@
+import argparse
 import os
 
 import pandas as pd
@@ -26,11 +27,26 @@ IM_TYPES = {
 
 curr_path = os.path.abspath(__file__)
 path_sections = curr_path.split(os.path.sep)
-DATA_DIR = os.path.join(os.path.sep.join(path_sections[:-4]), 'data', 'raw_data_TEST')
+DATA_DIR = os.path.join(os.path.sep.join(path_sections[:-4]), 'data', 'raw_data')
 
 
 class HaltException(Exception): 
     pass
+
+
+def combine_filters(collections, languages, preservations):
+    filters = {}
+
+    if collections is not None:
+        filters['collection'] = collections
+
+    if languages is not None:
+        filters['language'] = languages
+
+    if preservations is not None > 0:
+        filters['surface_preservation'] = preservations    
+
+    return filters
 
 
 def cdli_catalogue_paths(cdli_dir):
@@ -87,9 +103,10 @@ def filter_data(df, filters):
     return df
 
 
-def agree_download_start(num_records):
+def agree_download_start(num_records, max_download):
     user_choice = input(f'{num_records} tablets found with the selected filter'
-                        ' options.\nEnter "y" or "yes" to download: ')
+                        f' options.\nData for {max_download} tablets will be '
+                        'downloaded.\nEnter "y" or "yes" to download: ')
 
     if user_choice.lower().strip() not in ['y', 'yes']:
         raise HaltException('Image download halted by user. '
@@ -132,21 +149,30 @@ def download_data_set(records, save_dir):
             format = IM_TYPES[im_type]['format']
 
             url = make_url(type, sub_type, format, cdli_num)
-            save_path = make_save_path(save_dir, type, sub_type, format, cdli_num)
+            save_path = make_save_path(save_dir, 
+                                       type, 
+                                       sub_type, 
+                                       format, 
+                                       cdli_num,
+                                       )
 
             download_image(url, save_path)
 
 
-def download_selected_tablet_images(cdli_dir, filters, max_ims):
+def download_selected_tablet_images(cdli_dir, filters, max_ims=None):
     paths = cdli_catalogue_paths(cdli_dir)
 
     catalogue = catalogue_concatenation(paths)
     cleaned_catalogue = clean_data(catalogue)
 
     records = filter_data(cleaned_catalogue, filters)
-    max_ims = min(len(records), max_ims)
 
-    agree_download_start(max_ims) 
+    if max_ims is not None:
+        max_ims = min(len(records), max_ims)
+    else:
+        max_ims = len(records)
+
+    agree_download_start(len(records), max_ims)
     records = records.iloc[:max_ims]
 
     make_data_dirs()
@@ -155,14 +181,45 @@ def download_selected_tablet_images(cdli_dir, filters, max_ims):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
 
-    cdli_dir = 'D:\\Projects\\cdli_cuneiform\\data'
-    filters = {
-        'collection': ['hearst'],
-        'language': ['Sumerian'],
-        'surface_preservation': ['good'],
-        }
+    parser.add_argument(
+        '--cdli_dir',
+        help='Root directory of CDLI data repository.',
+        required=True,
+        )
 
-    max_ims = 5
-            
+    parser.add_argument(
+        '--collection',
+        nargs='+',
+        help='Filter available tablets by collection(s).',
+        )
+
+    parser.add_argument(
+        '--language',
+        nargs='+',
+        help='Filter available tablets by language(s).',
+        )
+
+    parser.add_argument(
+        "--preservation",
+        nargs='+',
+        help='Filter available tablets by preservation label(s).',
+        )
+
+    parser.add_argument(
+        "--max_tablets",
+        help='Maximum number of tablets for which images will be downloaded (first N in selected records).',
+        )
+
+    args = parser.parse_args()
+
+    cdli_dir = args.cdli_dir
+    collections = args.collection
+    languages = args.language
+    preservations = args.preservation
+    max_ims = int(args.max_tablets)
+
+    filters = combine_filters(collections, languages, preservations)
+
     download_selected_tablet_images(cdli_dir, filters, max_ims)
