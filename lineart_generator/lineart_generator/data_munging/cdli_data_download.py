@@ -27,7 +27,7 @@ IM_TYPES = {
 
 curr_path = os.path.abspath(__file__)
 path_sections = curr_path.split(os.path.sep)
-DATA_DIR = os.path.join(os.path.sep.join(path_sections[:-4]), 'data', 'raw_data')
+RAW_DATA_DIR = os.path.join(os.path.sep.join(path_sections[:-4]), 'data', 'raw_data')
 
 
 class HaltException(Exception): 
@@ -118,14 +118,17 @@ def make_url(type, sub_type, format, cdli_num):
         sub_type = '_' + sub_type
     return f'{HOST}{type}/{cdli_num}{sub_type}.{format}'
 
-
 def make_save_path(save_dir, type, sub_type, format, cdli_num):
-    return os.path.join(save_dir, type, sub_type, f'{cdli_num}.{format}')
+    if sub_type:
+        file_suffix = '_' + sub_type
+    else: 
+        file_suffix = sub_type
+    return os.path.join(save_dir, type, sub_type, f'{cdli_num}{file_suffix}.{format}')
 
 
-def make_data_dirs():
+def make_RAW_DATA_DIRs():
     for val in IM_TYPES.values():
-        dir_path = os.path.join(DATA_DIR, val['type'], val['sub-type'])
+        dir_path = os.path.join(RAW_DATA_DIR, val['type'], val['sub-type'])
         if not os.path.exists(dir_path):
             os.makedirs(dir_path)
 
@@ -175,9 +178,9 @@ def download_selected_tablet_images(cdli_dir, filters, max_ims=None):
     agree_download_start(len(records), max_ims)
     records = records.iloc[:max_ims]
 
-    make_data_dirs()
+    make_RAW_DATA_DIRs()
 
-    download_data_set(records, DATA_DIR)
+    download_data_set(records, RAW_DATA_DIR)
 
 
 if __name__ == '__main__':
