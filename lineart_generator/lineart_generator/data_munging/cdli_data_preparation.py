@@ -140,6 +140,12 @@ def process_faces(cdli_id, data_set_name):
         cv2.imwrite(os.path.join(dirs['p_rev'], f'{cdli_id}.jpg'), cropped_photo_rev)
 
 
+def process_tablets(cdli_ids, data_set_name):
+    for i, id in enumerate(cdli_ids):
+        print(f'Processing {id}, {i + 1} of {len(cdli_ids)} tablets')
+        process_faces(id, data_set_name)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
@@ -174,5 +180,4 @@ if __name__ == '__main__':
     photo_dir = os.path.join(RAW_DATA_DIR, 'photo')
     cdli_ids = [name[:-4] for name in os.listdir(photo_dir)]
 
-    for id in cdli_ids:
-        process_faces(id, data_set_name)
+    process_tablets(cdli_ids, data_set_name)
