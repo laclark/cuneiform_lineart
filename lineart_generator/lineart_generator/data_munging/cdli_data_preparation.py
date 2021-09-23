@@ -4,6 +4,7 @@ Process photos and lineart into obverse and reverse.
 Store data
 
 """
+import argparse
 import os
 
 import cv2
@@ -140,10 +141,38 @@ def process_faces(cdli_id, data_set_name):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        '--raw_data_dir',
+        help='Root directory containing downloaded CDLI images.',
+        )
+
+    parser.add_argument(
+        '--output_dir',
+        help='Parent directory to which processed images will be saved. If "--name" is also entered, images will be saved to <output_dir>\\<name>.',
+        )
+
+    parser.add_argument(
+        '--name',
+        default='',
+        help='Name of processed data set. If present, all processed data will be saved into a parent directory with this name.',
+        )
+
+    args = parser.parse_args()
+
+    raw_data_dir = args.raw_data_dir
+    output_dir = args.output_dir
+    data_set_name = args.name
+
+    if raw_data_dir is not None:
+        RAW_DATA_DIR = raw_data_dir
+
+    if output_dir is not None:
+        PROCESSED_DATA_DIR = output_dir
+
     photo_dir = os.path.join(RAW_DATA_DIR, 'photo')
     cdli_ids = [name[:-4] for name in os.listdir(photo_dir)]
-
-    data_set_name = 'test'
 
     for id in cdli_ids:
         process_faces(id, data_set_name)
