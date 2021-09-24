@@ -126,7 +126,7 @@ def make_save_path(save_dir, type, sub_type, format, cdli_num):
     return os.path.join(save_dir, type, sub_type, f'{cdli_num}{file_suffix}.{format}')
 
 
-def make_RAW_DATA_DIRs():
+def make_raw_data_dirs():
     for val in IM_TYPES.values():
         dir_path = os.path.join(RAW_DATA_DIR, val['type'], val['sub-type'])
         if not os.path.exists(dir_path):
@@ -139,12 +139,17 @@ def download_image(url, save_path):
         with open(save_path, 'wb') as f:
             for chunk in r.iter_content(1024):
                 f.write(chunk)
+        return True
+    else:
+        return False
 
 
 def download_data_set(records, save_dir):
+    downloaded_data = {}
+
     for i, record in enumerate(records.itertuples()):
         cdli_num = f'P{record.id_text.zfill(6)}'
-        print(f'Downloading {cdli_num}, {i + 1} of {len(records)} records')
+        print(f'Downloading {cdli_num}, {i + 1} of {len(records)} records')        
 
         for im_type in IM_TYPES:
             type = IM_TYPES[im_type]['type']
@@ -159,7 +164,14 @@ def download_data_set(records, save_dir):
                                        cdli_num,
                                        )
 
-            download_image(url, save_path)
+            downloaded = download_image(url, save_path)
+
+            if downloaded:
+                if im_type not in downloaded_data:
+                    downloaded_data[im_type] = []
+                downloaded_data[im_type].append(cdli_num)
+
+    return downloaded_data
 
 
 def download_selected_tablet_images(cdli_dir, filters, max_ims=None):
@@ -178,9 +190,11 @@ def download_selected_tablet_images(cdli_dir, filters, max_ims=None):
     agree_download_start(len(records), max_ims)
     records = records.iloc[:max_ims]
 
-    make_RAW_DATA_DIRs()
+    make_raw_data_dirs()
 
-    download_data_set(records, RAW_DATA_DIR)
+    local_ids = download_data_set(records, RAW_DATA_DIR)
+
+    return local_ids
 
 
 if __name__ == '__main__':
