@@ -24,6 +24,8 @@ import json
 from math import ceil
 import os
 
+import numpy as np
+
 import tensorflow as tf
 from tensorflow.math import ceil, divide, minimum, multiply, not_equal
 
@@ -171,26 +173,43 @@ def get_image_paths(parent_dir):
     return paired_paths
 
 
-def prepare_datasets(data_config):
-    parent_dir, buffer_size, batch_size = (data_config['parent_directory'], 
-                                           data_config['buffer_size'],  
-                                           data_config['batch_size'])
+def split_datasets(all_paths, train_proportion):
+    training_pairs, test_pairs = [], []
 
-    train_paths = get_image_paths(os.path.join(parent_dir, 'train'))
+    if train_proportion < 1:
+        num_examples = len(all_paths)
+
+        assignments = np.random.choice(
+                            [0, 1], 
+                            size=num_examples, 
+                            p=[1 - train_proportion, 
+                            train_proportion]
+                            )
+
+        for assignment, pair in zip(assignments, all_paths):
+            if assignment:
+                training_pairs.append(pair)
+            else:
+                test_pairs.append(pair)
+
+    return training_pairs, test_pairs
+
+
+def prepare_datasets(data_dir, train_proportion):
+    paired_paths = get_image_paths(data_dir)
+    train_paths, test_paths = split_datasets(paired_paths, train_proportion)
+    
+    batch_size = 1 
+    buffer_size = min(100, len(train_paths))
+
     train_dataset = tf.data.Dataset.from_tensor_slices(train_paths)
     train_dataset = train_dataset.map(load_image_train,
                                       num_parallel_calls=tf.data.AUTOTUNE)
     train_dataset = train_dataset.shuffle(buffer_size)
     train_dataset = train_dataset.batch(batch_size)
 
-    test_paths = get_image_paths(os.path.join(parent_dir, 'test'))
     test_dataset = tf.data.Dataset.from_tensor_slices(test_paths)
     test_dataset = test_dataset.map(load_image_test)
     test_dataset = test_dataset.batch(batch_size)
 
     return train_dataset, test_dataset
-
-
-if __name__ == '__main__':
-    config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'training_data.json')
-    train_dataset, test_dataset = prepare_datasets(config_path)

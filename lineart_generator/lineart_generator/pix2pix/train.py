@@ -19,6 +19,7 @@
 Code samples modified slightly to break into separate modules.
 
 """
+import argparse
 import io
 import tensorflow as tf
 import json
@@ -31,7 +32,12 @@ from matplotlib import pyplot as plt
 import lineart_generator.pix2pix.data_processing as dt
 import lineart_generator.pix2pix.discriminator as ds
 import lineart_generator.pix2pix.generator as gn
+from lineart_generator.data_munging.cdli_data_preparation import PROCESSED_DATA_DIR
 
+
+curr_path = os.path.abspath(__file__)
+path_sections = curr_path.split(os.path.sep)
+TRAINING_DIR = os.path.join(os.path.sep.join(path_sections[:-4]), 'models')
 
 GENERATOR_OPTIMIZER = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
 DISCRIMINATOR_OPTIMIZER = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
@@ -46,13 +52,13 @@ def read_configuration(config_path):
         return configs['training'], configs['dataset']
 
 
-def create_training_dir(training_config):
+def create_training_dir(training_dir, model_name):
 
-    checkpoint_dir = os.path.join(training_config['training_dir'], 
-                                  training_config['model_name'],
+    checkpoint_dir = os.path.join(training_dir, 
+                                  model_name,
                                   'ckpts')
-    log_dir = os.path.join(training_config['training_dir'], 
-                           training_config['model_name'],
+    log_dir = os.path.join(training_dir, 
+                           model_name,
                            'tf_event_logs')
     return log_dir, checkpoint_dir
 
@@ -166,11 +172,10 @@ def fit(checkpoint, summary_writer, epochs, train_ds, test_ds):
                                                            time.time()-start))
 
 
-def train_lineart_generator(epochs, config_path):
-    training_config, dataset_config = read_configuration(config_path)
-    log_dir, checkpoint_dir = create_training_dir(training_config)
+def train_lineart_generator(training_dir, model_name, data_dir, train_proportion, epochs):
+    log_dir, checkpoint_dir = create_training_dir(training_dir, model_name)
 
-    train_dataset, test_dataset = dt.prepare_datasets(dataset_config)
+    train_dataset, test_dataset = dt.prepare_datasets(data_dir, train_proportion)
 
     checkpoint = tf.train.Checkpoint(generator_optimizer=GENERATOR_OPTIMIZER,
                                      discriminator_optimizer=DISCRIMINATOR_OPTIMIZER,
@@ -184,8 +189,13 @@ def train_lineart_generator(epochs, config_path):
 
 
 if __name__ == '__main__':
-
-    config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'training_data.json')
     epochs = 10
+    model_name = 'toy_1'
+    train_proportion = 0.5
 
-    train_lineart_generator(epochs, config_path)
+    train_lineart_generator(
+        TRAINING_DIR, 
+        model_name, 
+        PROCESSED_DATA_DIR, 
+        train_proportion, 
+        epochs)
