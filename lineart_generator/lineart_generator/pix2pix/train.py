@@ -25,7 +25,7 @@ import tensorflow as tf
 import json
 import os
 import time
-import datetime
+from datetime import datetime
 
 from matplotlib import pyplot as plt
 
@@ -46,10 +46,10 @@ DISCRIMINATOR = ds.Discriminator()
 GENERATOR = gn.Generator()
 
 
-def read_configuration(config_path):
-    with open(config_path, 'r') as f:
-        configs = json.load(f) 
-        return configs['training'], configs['dataset']
+def name_model():
+    now = datetime.now()
+    date_time = now.strftime("%d-%m-%Y__%H_%M_%S")
+    return f'{date_time}__model'
 
 
 def create_training_dir(training_dir, model_name):
@@ -189,13 +189,50 @@ def train_lineart_generator(training_dir, model_name, data_dir, train_proportion
 
 
 if __name__ == '__main__':
-    epochs = 10
-    model_name = 'toy_1'
-    train_proportion = 0.5
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        '--training_dir',
+        help='Parent directory within which model training directory will be created.',
+        default=TRAINING_DIR,
+        )
+
+    parser.add_argument(
+        '--model_name',
+        help='Name used for directory holding training artifacts.',
+        default=name_model(),
+        )
+
+    parser.add_argument(
+        '--data_dir',
+        help='Processed data directory to be used for training model.',
+        default=PROCESSED_DATA_DIR,
+        )
+
+    parser.add_argument(
+        '--train_proportion',
+        help='Proportion (between 0 and 1) of image examples to use for model training.  All other images will be used for the test set.',
+        default=0.7,
+        )
+
+    parser.add_argument(
+        '--epochs',
+        help='Number of epochs for which model will train.',
+        default=25,
+        )
+
+    args = parser.parse_args()
+
+    training_dir = args.training_dir
+    model_name = args.model_name
+    data_dir = args.data_dir
+    train_proportion = args.train_proportion
+    epochs = args.epochs
+
 
     train_lineart_generator(
-        TRAINING_DIR, 
+        training_dir, 
         model_name, 
-        PROCESSED_DATA_DIR, 
+        data_dir, 
         train_proportion, 
         epochs)
