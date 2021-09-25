@@ -134,13 +134,16 @@ def make_raw_data_dirs():
 
 
 def download_image(url, save_path):
-    r = requests.get(url, stream=True)
-    if r.status_code == 200:
-        with open(save_path, 'wb') as f:
-            for chunk in r.iter_content(1024):
-                f.write(chunk)
-        return True
-    else:
+    try:
+        r = requests.get(url, stream=True)
+        if r.status_code == 200:
+            with open(save_path, 'wb') as f:
+                for chunk in r.iter_content(1024):
+                    f.write(chunk)
+            return True
+        else:
+            return False
+    except:
         return False
 
 
