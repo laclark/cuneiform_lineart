@@ -137,7 +137,7 @@ def save_checkpoint(checkpoint, epoch, frequency):
         checkpoint.save(file_prefix=name_checkpoint())
 
 
-def fit(checkpoint, summary_writer, epochs, train_ds, test_ds):
+def fit(checkpoint, summary_writer, epochs, train_ds, test_ds, save_frequency):
     global_step = 0
 
     for epoch in range(epochs):
@@ -160,9 +160,8 @@ def fit(checkpoint, summary_writer, epochs, train_ds, test_ds):
                 print()
             losses = train_step(input_image, target, epoch)
             add_losses_to_summary(summary_writer, losses, global_step + n.numpy() + 1)
-            
-        frequency = 5
-        save_checkpoint(checkpoint, epoch, frequency)
+
+        save_checkpoint(checkpoint, epoch, save_frequency)
 
         print()
         
@@ -172,7 +171,7 @@ def fit(checkpoint, summary_writer, epochs, train_ds, test_ds):
                                                            time.time()-start))
 
 
-def train_lineart_generator(training_dir, model_name, data_dir, train_proportion, epochs):
+def train_lineart_generator(training_dir, model_name, data_dir, train_proportion, epochs, save_frequency):
     log_dir, checkpoint_dir = create_training_dir(training_dir, model_name)
 
     train_dataset, test_dataset = dt.prepare_datasets(data_dir, train_proportion)
@@ -185,7 +184,7 @@ def train_lineart_generator(training_dir, model_name, data_dir, train_proportion
 
     summary_writer = tf.summary.create_file_writer(log_dir)
 
-    fit(checkpoint, summary_writer, epochs, train_dataset, test_dataset)
+    fit(checkpoint, summary_writer, epochs, train_dataset, test_dataset, save_frequency)
 
 
 if __name__ == '__main__':
@@ -221,6 +220,12 @@ if __name__ == '__main__':
         default=25,
         )
 
+    parser.add_argument(
+        '--save_every_n_epochs',
+        help='Save checkpoint every N epochs.',
+        default=5,
+        )
+
     args = parser.parse_args()
 
     training_dir = args.training_dir
@@ -228,11 +233,12 @@ if __name__ == '__main__':
     data_dir = args.data_dir
     train_proportion = args.train_proportion
     epochs = args.epochs
-
+    save_frequency = args.save_every_n_epochs
 
     train_lineart_generator(
         training_dir, 
         model_name, 
         data_dir, 
         train_proportion, 
-        epochs)
+        epochs, 
+        save_frequency)
