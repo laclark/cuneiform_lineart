@@ -26,9 +26,11 @@ import lineart_generator.pix2pix.data_processing as dt
 
 
 OUTPUT_CHANNELS = 3
+LOSS_OBJECT = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 
 
 def downsample(filters, size, apply_batchnorm=True):
+    """Encoder."""
     initializer = tf.random_normal_initializer(0., 0.02)
 
     result = tf.keras.Sequential()
@@ -45,6 +47,7 @@ def downsample(filters, size, apply_batchnorm=True):
 
 
 def upsample(filters, size, apply_dropout=False):
+    """Decoder."""
     initializer = tf.random_normal_initializer(0., 0.02)
 
     result = tf.keras.Sequential()
@@ -65,6 +68,7 @@ def upsample(filters, size, apply_dropout=False):
 
 
 def Generator():
+    """Build modified U-Net PatchGAN classifier with skip connections."""
     inputs = tf.keras.layers.Input(shape=[256, 256, 3])
 
     down_stack = [
@@ -115,17 +119,17 @@ def Generator():
     return tf.keras.Model(inputs=inputs, outputs=x)
 
 
-# define loss
-LAMBDA = 100
-loss_object = tf.keras.losses.BinaryCrossentropy(from_logits=True)
-
-
 def generator_loss(disc_generated_output, gen_output, target):
-    gan_loss = loss_object(tf.ones_like(disc_generated_output), disc_generated_output)
-
-    # Mean absolute error
+    """Sum of two loss terms:
+        * sigmoid cross-entropy loss of generated images and an array of ones,
+        * mean absolute error between generated image and target image,
+            multiplied by a factor.
+    """
+    gan_loss = LOSS_OBJECT(tf.ones_like(disc_generated_output),
+                           disc_generated_output)
     l1_loss = tf.reduce_mean(tf.abs(target - gen_output))
 
+    LAMBDA = 100   # defined by pix2pix authors
     total_gen_loss = gan_loss + (LAMBDA * l1_loss)
 
     return total_gen_loss, gan_loss, l1_loss

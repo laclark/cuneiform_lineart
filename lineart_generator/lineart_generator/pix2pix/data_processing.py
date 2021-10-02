@@ -14,19 +14,17 @@
 # limitations under the License.
 # ==============================================================================
 
-"""Data processing functions.
+"""Data loading and preprocessing to create model training/testing data sets.
 
 Code samples modified slightly to break into separate modules.
 
 """
 
-import json
-from math import ceil
 import os
 
 import numpy as np
-
 import tensorflow as tf
+from tensorflow.image import ResizeMethod
 from tensorflow.math import ceil, divide, minimum, multiply, not_equal
 
 
@@ -35,7 +33,7 @@ IMG_HEIGHT = 256
 
 
 def make_target_path(image_path):
-
+    """Construct line art path given photo path."""
     head, im_filename = os.path.split(image_path)
 
     data_dir, im_dir = os.path.split(head)
@@ -45,25 +43,39 @@ def make_target_path(image_path):
 
 
 def read_decode_image(image_path):
-    # Read and decode an image file to a uint8 tensor
+    """Read image file and convert to a uint8 tensor."""
     image = tf.io.read_file(image_path)
     im_tensor = tf.image.decode_jpeg(image)
     return im_tensor
 
 
 def load(image_path, target_path):
-    
+    """Load image files and create correctly sized/typed tensors for data set.
+
+    Args:
+        image_path (str): Path to photo of tablet face.
+        target_path (str): Path to line art of tablet face.
+
+    Returns:
+        input_image (tf.Tensor, dtype 'float32', dimensions IMG_HEIGHT x IMG_WIDTH x 3):
+            Tensor (photo) ready for further data augmentation or direct model
+            input.
+        target_image (tf.Tensor, dtype 'float32', dimensions IMG_HEIGHT x IMG_WIDTH x 3):
+            Tensor (line art) ready for further data augmentation or direct
+            model input.
+
+    """
     input_image = read_decode_image(image_path)
     target_image = read_decode_image(target_path)
 
-    h, w = (tf.shape(input_image)[0], 
-            tf.shape(input_image)[1]) 
-    h, w = (tf.cast(h, tf.float32), 
+    h, w = (tf.shape(input_image)[0],
+            tf.shape(input_image)[1])
+    h, w = (tf.cast(h, tf.float32),
             tf.cast(w, tf.float32))
 
-    h_t, w_t = (tf.shape(target_image)[0], 
+    h_t, w_t = (tf.shape(target_image)[0],
                 tf.shape(target_image)[1])
-    h_t, w_t = (tf.cast(h_t, tf.float32), 
+    h_t, w_t = (tf.cast(h_t, tf.float32),
                 tf.cast(w_t, tf.float32))
 
     if not_equal(h_t, h) or not_equal(w_t, w):
@@ -72,16 +84,15 @@ def load(image_path, target_path):
         target_image = resize_single(target_image, h, w)
 
     if h < IMG_HEIGHT or w < IMG_WIDTH:
-        # print('make larger')
         min_dim = minimum(h, w)
         factor = tf.cast(ceil(divide(IMG_HEIGHT, min_dim)), tf.float32)
-        input_image, target_image = resize(input_image, target_image, multiply(factor, h), multiply(factor, w))
+        input_image, target_image = resize(input_image, target_image,
+                                           multiply(factor, h),
+                                           multiply(factor, w))
 
     if h > IMG_HEIGHT or w > IMG_WIDTH:
-        # print('random crop')
         input_image, target_image = random_crop(input_image, target_image)
-    
-    # Convert both images to float32 tensors
+
     input_image = tf.cast(input_image, tf.float32)
     target_image = tf.cast(target_image, tf.float32)
 
@@ -89,22 +100,54 @@ def load(image_path, target_path):
 
 
 def resize(input_image, target_image, height, width):
+    """Resize input (photo) and target (line art).
+
+    Args:
+        input_image (tf.Tensor, dtype 'uint8', dimensions m x n x 3): Tensor
+            (photo) to be resized.
+        target_image (tf.Tensor, dtype 'uint8', dimensions m x n x 3): Tensor
+            (lineart) to be resized.
+        height (tf.Tensor, dtype 'float32', dimensions 0): Output height.
+        width (tf.Tensor, dtype 'float32', dimensions 0): Output width.
+
+    Returns:
+        input_image (tf.Tensor, dtype 'uint8', dimensions height x width x 3):
+            Resized image tensor (photo).
+        target_image (tf.Tensor, dtype 'uint8', dimensions height x width x 3):
+            Resized image tensor (line art).
+
+    """
     input_image = tf.image.resize(input_image, [height, width],
-                                method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+                                  method=ResizeMethod.NEAREST_NEIGHBOR)
     target_image = tf.image.resize(target_image, [height, width],
-                                method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+                                   method=ResizeMethod.NEAREST_NEIGHBOR)
 
     return input_image, target_image
 
 
 def resize_single(image, height, width):
-    print('resize target')
+    """No longer used because resizing accomplished in data preprocessing."""
     image = tf.image.resize(image, [height, width],
-                                method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+                            method=ResizeMethod.NEAREST_NEIGHBOR)
     return image
 
 
 def random_crop(input_image, target_image):
+    """Crop random matching portion from image and target.
+
+    Args:
+        input_image (tf.Tensor, dtype 'uint8', dimensions m x n x 3): Tensor
+            (photo) to be cropped.
+        target_image (tf.Tensor, dtype 'uint8', dimensions m x n x 3): Tensor
+            (lineart) to be cropped.
+
+    Returns:
+        cropped_image[0] (tf.Tensor, dtype 'uint8', dimensions IMG_HEIGHT x IMG_WIDTH x 3):
+            Cropped image tensor (photo).
+        cropped_image[1] (tf.Tensor, dtype 'uint8', dimensions IMG_HEIGHT x IMG_WIDTH x 3):
+            Cropped image tensor (line art).
+
+    """
     stacked_image = tf.stack([input_image, target_image], axis=0)
     cropped_image = tf.image.random_crop(
         stacked_image, size=[2, IMG_HEIGHT, IMG_WIDTH, 3])
@@ -112,8 +155,8 @@ def random_crop(input_image, target_image):
     return cropped_image[0], cropped_image[1]
 
 
-# Normalizing the images to [-1, 1]
 def normalize(input_image, target_image):
+    """Normalize pixel values to [-1, 1]."""
     input_image = (input_image / 127.5) - 1
     target_image = (target_image / 127.5) - 1
 
@@ -122,14 +165,28 @@ def normalize(input_image, target_image):
 
 @tf.function()
 def random_jitter(input_image, target_image):
-    # Resizing to 286x286
-    input_image, target_image = resize(input_image, target_image, 286, 286)
+    """Random jitter and horizontal flipping of input images.
 
-    # Random cropping back to 256x256
+    Args:
+        input_image (tf.Tensor, dtype 'uint8', dimensions m x n x 3): Tensor
+            (photo) for data augmentation.
+        target_image (tf.Tensor, dtype 'uint8', dimensions m x n x 3): Tensor
+            (lineart) to be data augmentation.
+
+    Returns:
+        input_image (tf.Tensor, dtype 'uint8', dimensions IMG_HEIGHT x IMG_WIDTH x 3):
+            Augmented image tensor (photo).
+        target_image (tf.Tensor, dtype 'uint8', dimensions IMG_HEIGHT x IMG_WIDTH x 3):
+            Augmented image tensor (line art).
+
+    """
+
+    # Jitter by resizing then random crop.
+    input_image, target_image = resize(input_image, target_image, 286, 286)
     input_image, target_image = random_crop(input_image, target_image)
 
+    # Random horizontal flipping.
     if tf.random.uniform(()) > 0.5:
-        # Random mirroring
         input_image = tf.image.flip_left_right(input_image)
         target_image = tf.image.flip_left_right(target_image)
 
@@ -137,7 +194,7 @@ def random_jitter(input_image, target_image):
 
 
 def load_image_train(path_tuple):
-
+    """Load and preprocess training data set example."""
     image_file, target_file = path_tuple[0], path_tuple[1]
 
     input_image, target_image = load(image_file, target_file)
@@ -148,24 +205,35 @@ def load_image_train(path_tuple):
 
 
 def load_image_test(path_tuple):
-
+    """Load and preprocess test data set example."""
     image_file, target_file = path_tuple[0], path_tuple[1]
 
     input_image, target_image = load(image_file, target_file)
     input_image, target_image = resize(input_image, target_image,
-                                    IMG_HEIGHT, IMG_WIDTH)
+                                       IMG_HEIGHT, IMG_WIDTH)
     input_image, target_image = normalize(input_image, target_image)
 
     return input_image, target_image
 
 
 def get_image_paths(parent_dir):
+    """ List all photo + line art paired paths in directory.
 
+    Args:
+        parent_dir (str): Directory containing matched photos and line art for
+            individual tablet faces.
+
+    Returns:
+        paired_paths (list of tuples (str, str)): Tuples comprise paired paths
+            (photo path, line art path) for a tablet face.
+
+    """
     image_paths = []
     for input_dir in ['photo_obv', 'photo_rev']:
         root = os.path.join(parent_dir, input_dir)
-        image_paths.extend([os.path.join(root, file) for file in os.listdir(root)])
-    
+        image_paths.extend([os.path.join(root, file) for file
+                            in os.listdir(root)])
+
     paired_paths = []
     for image_path in image_paths:
         paired_paths.append((image_path, make_target_path(image_path)))
@@ -174,17 +242,30 @@ def get_image_paths(parent_dir):
 
 
 def split_datasets(all_paths, train_proportion):
+    """Randomly assigns tablet faces to training and test sets.
+
+    Args:
+        all_paths (list of tuples (str, str)): Tuples comprise paired paths
+            (photo path, line art path) for a tablet face.
+        train_proportion (float): Proportion (between 0 and 1) of image
+            examples to use for model training.  Other images will be used for
+            the test set.
+
+    Returns:
+        training_pairs (list of tuples (str, str)): Paired paths
+            (photo path, line art path) for tablet faces used to train model.
+        test_pairs (list of tuples (str, str)): Paired paths
+            (photo path, line art path) for tablet faces used to test model.
+
+    """
     training_pairs, test_pairs = [], []
 
     if train_proportion < 1:
         num_examples = len(all_paths)
 
-        assignments = np.random.choice(
-                            [0, 1], 
-                            size=num_examples, 
-                            p=[1 - train_proportion, 
-                            train_proportion]
-                            )
+        assignments = np.random.choice([0, 1], size=num_examples,
+                                       p=[1 - train_proportion,
+                                          train_proportion])
 
         for assignment, pair in zip(assignments, all_paths):
             if assignment:
@@ -196,10 +277,25 @@ def split_datasets(all_paths, train_proportion):
 
 
 def prepare_datasets(data_dir, train_proportion):
+    """Create train and test datasets.
+
+    Args:
+        data_dir (str): Directory containing matched photographs and line art
+            for individual tablet faces.
+        train_proportion (float): Proportion (between 0 and 1) of image
+            examples to use for model training.  Other images will comprise the
+            test dataset.
+    Returns:
+        train_dataset (tf.data.Dataset): Preprocessed, shuffled, and batched
+            images used for model training.
+        test_dataset (tf.data.Dataset): Preprocessed and batched
+            images used for model testing.
+
+    """
     paired_paths = get_image_paths(data_dir)
     train_paths, test_paths = split_datasets(paired_paths, train_proportion)
-    
-    batch_size = 1 
+
+    batch_size = 1   # Suggested by pix2pix authors
     buffer_size = min(100, len(train_paths))
 
     train_dataset = tf.data.Dataset.from_tensor_slices(train_paths)
