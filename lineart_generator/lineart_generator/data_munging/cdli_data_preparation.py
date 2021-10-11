@@ -185,8 +185,10 @@ def fatcross_faces(stats):
             as described in fatcross_components.
 
     Returns:
-        obv (int): Label value corresponding to obverse face.
-        rev (int): Label value corresponding to reverse face.
+        obv (int or None): Label value corresponding to obverse face, 
+            unless fewer than two labelled areas exist in stats.
+        rev (int or None): Label value corresponding to reverse face, 
+            unless fewer than two labelled areas exist in stats.
 
     """
     areas = []
@@ -194,19 +196,27 @@ def fatcross_faces(stats):
         if obj >= 1:   # ignore background
             areas.append((obj, stats[obj, 4]))
     sorted_areas = sorted(areas, key=lambda x: x[1])
-    face_labels = [x[0] for x in sorted_areas[-2:]]
-    obv, rev = min(face_labels), max(face_labels)
+
+    if len(sorted_areas) >= 2:
+        face_labels = [x[0] for x in sorted_areas[-2:]]
+        obv, rev = min(face_labels), max(face_labels)
+    else:
+        obv, rev = None, None
     return obv, rev
 
 
 def lineart_faces(stats):
-    """Assign line art faces assuming good segmentation.
+    """Assign line art face labels assuming vertical layout.
 
     Caveats about style and shape are as described in module and fatcross_faces
     docstrings.
 
     """
-    obv, rev = 1, 2
+    if stats.shape[0] >= 3:   # require at least two labelled regions + bg
+        obv, rev = 1, 2
+    else:
+        obv, rev = None, None
+
     return obv, rev
 
 
@@ -219,7 +229,7 @@ def crop_face(img, face_stats):
             statistics for a single face (see fatcross_components for
             stat list).
 
-    Returns
+    Returns:
         crop_img (np.ndarray, dtype 'uint8', dimensions i x j x 3): Cropped
             image containing component described by face_stats.
 
@@ -237,6 +247,8 @@ def process_faces(cdli_id, data_set_name):
     single tablet.
 
     Tablet is only processed if both photo and line art are saved locally.
+    Neither line art nor photo segmentations are saved if either segmentation
+    step does not find at least three distinct regions.
 
     Args:
         cdli_id (str): CDLI number, e.g. 'P000001'.
@@ -259,34 +271,35 @@ def process_faces(cdli_id, data_set_name):
         _, f_labels, f_stats, f_centroids = fatcross_components(photo_img)
         f_obv_index, f_rev_index = fatcross_faces(f_stats)
 
-        cropped_line_obv = crop_face(lineart_img, l_stats[l_obv_index])
-        cropped_line_rev = crop_face(lineart_img, l_stats[l_rev_index])
+        if None not in [f_obv_index, f_rev_index, l_obv_index, l_rev_index]:
+            cropped_line_obv = crop_face(lineart_img, l_stats[l_obv_index])
+            cropped_line_rev = crop_face(lineart_img, l_stats[l_rev_index])
 
-        cropped_photo_obv = crop_face(photo_img, f_stats[f_obv_index])
-        cropped_photo_rev = crop_face(photo_img, f_stats[f_rev_index])
+            cropped_photo_obv = crop_face(photo_img, f_stats[f_obv_index])
+            cropped_photo_rev = crop_face(photo_img, f_stats[f_rev_index])
 
-        # resize lineart faces
-        face_width = f_stats[f_obv_index][2]
-        face_height = f_stats[f_obv_index][3]
+            # resize lineart faces
+            face_width = f_stats[f_obv_index][2]
+            face_height = f_stats[f_obv_index][3]
 
-        scale_line_obv = cv2.resize(cropped_line_obv, (face_width, face_height), interpolation=cv2.INTER_CUBIC)
-        scale_line_rev = cv2.resize(cropped_line_rev, (face_width, face_height), interpolation=cv2.INTER_CUBIC)
+            scale_line_obv = cv2.resize(cropped_line_obv, (face_width, face_height), interpolation=cv2.INTER_CUBIC)
+            scale_line_rev = cv2.resize(cropped_line_rev, (face_width, face_height), interpolation=cv2.INTER_CUBIC)
 
-        dirs = {
-            'l_obv': os.path.join(PROCESSED_DATA_DIR, data_set_name, 'lineart_obv'),
-            'l_rev': os.path.join(PROCESSED_DATA_DIR, data_set_name, 'lineart_rev'),
-            'p_obv': os.path.join(PROCESSED_DATA_DIR, data_set_name, 'photo_obv'),
-            'p_rev': os.path.join(PROCESSED_DATA_DIR, data_set_name, 'photo_rev'),
-        }
+            dirs = {
+                'l_obv': os.path.join(PROCESSED_DATA_DIR, data_set_name, 'lineart_obv'),
+                'l_rev': os.path.join(PROCESSED_DATA_DIR, data_set_name, 'lineart_rev'),
+                'p_obv': os.path.join(PROCESSED_DATA_DIR, data_set_name, 'photo_obv'),
+                'p_rev': os.path.join(PROCESSED_DATA_DIR, data_set_name, 'photo_rev'),
+            }
 
-        for dir in dirs.values():
-            if not os.path.exists(dir):
-                os.makedirs(dir)
+            for dir in dirs.values():
+                if not os.path.exists(dir):
+                    os.makedirs(dir)
 
-        cv2.imwrite(os.path.join(dirs['l_obv'], f'{cdli_id}.jpg'), scale_line_obv)
-        cv2.imwrite(os.path.join(dirs['l_rev'], f'{cdli_id}.jpg'), scale_line_rev)
-        cv2.imwrite(os.path.join(dirs['p_obv'], f'{cdli_id}.jpg'), cropped_photo_obv)
-        cv2.imwrite(os.path.join(dirs['p_rev'], f'{cdli_id}.jpg'), cropped_photo_rev)
+            cv2.imwrite(os.path.join(dirs['l_obv'], f'{cdli_id}.jpg'), scale_line_obv)
+            cv2.imwrite(os.path.join(dirs['l_rev'], f'{cdli_id}.jpg'), scale_line_rev)
+            cv2.imwrite(os.path.join(dirs['p_obv'], f'{cdli_id}.jpg'), cropped_photo_obv)
+            cv2.imwrite(os.path.join(dirs['p_rev'], f'{cdli_id}.jpg'), cropped_photo_rev)
 
 
 def process_tablets(cdli_ids, data_set_name):
