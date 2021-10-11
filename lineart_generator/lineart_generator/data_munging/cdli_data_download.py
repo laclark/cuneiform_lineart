@@ -1,16 +1,25 @@
 """Downloads raw image data (photos and line art) for selected CDLI records.
 
-Given a directory containing CDLI catalogue subsections (i.e.
-'cdli_catalogue_1of2.csv'), the script will first combine all catalogue
-entries.  Do not rename the catalogue files.
+Tablets are selected for download in one of two ways:
+    1. Given the CDLI catalogue directory and filters, download
+            artifacts for selected records up to the maximum allowed number.
+    2. Read a text document listing desired CDLI numbers, and download
+            artifacts for each tablet on the list.
 
-A subset of records is then selected if certain command line arguments
-('collection', 'language', or 'preservation') are supplied by the user.
+If both cdli_dir and cdli_list_path are given, the text document will be
+given priority.
 
-For each selected record (up to the optional 'max_tablets' input), the script
-will attempt to download the associated tablet's photographic record and
-lineart.  Note that for a given entry, EITHER photo OR lineart, BOTH, or
-NEITHER image(s) may be downloaded (depending on available CDLI data).
+In the first usage, the script will first combine all catalogue entries
+(e.g. 'cdli_catalogue_1of2.csv' and 'cdli_catalogue_2of2.csv').  Do not
+rename the catalogue files. Optional filters supplied by the user via command
+line arguments ('collection', 'language', or 'preservation') are then applied
+to the catalogue, and the first N (optional user input) matching records are
+selected for download.
+
+In both usages, the script will attempt to download each selected tablet's
+associated photographic record and line art.  Note that for a given entry,
+EITHER photo OR lineart, BOTH, or NEITHER image(s) may be downloaded
+(depending on available data).
 
 Downloaded images will be stored as follows:
 
@@ -36,13 +45,17 @@ Examples:
         Anthropology (Berkeley, CA, USA), in the Sumerian language,
         with good surface preservation.
 
-        python cdli_data_download.py
-            --cdli_dir=<path_to_CDLI_data>   \
-            --collection hearst              \
-            --language sumerian              \
-            --preservation good              \
-            --max_tablets=5                  \
+        python cdli_data_download.py            \
+            --cdli_dir=<path_to_CDLI_data>      \
+            --collection hearst                 \
+            --language sumerian                 \
+            --preservation good                 \
+            --max_tablets=5                     \
 
+    * Download data for tablets listed in text document.
+
+        python cdli_data_download.py            \
+            --cdli_list_path=<path_to_text_list>
 
 Todo:
     * Check whether image exists prior to download; don't download again.
@@ -247,14 +260,14 @@ def download_image(url, save_path):
         return False
 
 
-def download_data_set(records, save_dir):
-    """Download photo and line art for given CDLI records.
+def download_data_set(cdli_nums, save_dir):
+    """Download photo and line art for given tablets.
 
     Locally stored files are separated into subdirectories based on image type
     ('photo', 'lineart_l').
 
     Args:
-        records (pd.DataFrame): Dataframe containing CDLI records.
+        cdli_nums (list of str): List of CDLI tablet numbers.
         save_dir (str): Path to parent directory for local image storage.
 
     Returns:
@@ -264,9 +277,8 @@ def download_data_set(records, save_dir):
     """
     downloaded_data = {}
 
-    for i, record in enumerate(records.itertuples()):
-        cdli_num = f'P{record.id_text.zfill(6)}'
-        print(f'Downloading {cdli_num}, {i + 1} of {len(records)} records')
+    for i, cdli_num in enumerate(cdli_nums):
+        print(f'Downloading {cdli_num}, {i + 1} of {len(cdli_nums)} records')
 
         for im_type in IM_TYPES:
             type = IM_TYPES[im_type]['type']
@@ -291,20 +303,19 @@ def download_data_set(records, save_dir):
     return downloaded_data
 
 
-def download_selected_tablet_images(cdli_dir, filters, max_ims=None):
-    """Reads CDLI catalogue from directory, applies filters, and downloads
-    photographs and line art for each record entry.
+def read_tablet_text(path):
+    """Todo: Add cdli number format verification."""
+    with open(path, 'r') as f:
+        cdli_nums = []
+        for line in f.readlines():
+            cdli_nums.append(line.strip('\n'))
+    return cdli_nums
 
-    Args:
-        cdli_dir (str): Directory containing CDLI data catalogues.
-        filters (dict of str -> list): Maps catalogue column names to a list of
-            required terms.
-        max_ims (int or None): Maximum number of records to download images
-            for; if None, will download images for all filtered records.
 
-    Returns:
-        local_ids: Maps image type to list
-            of CDLI numbers designating successfully downloaded images.
+def select_tablets_from_catalogue(cdli_dir, filters, max_ims):
+    """Given the CDLI data directory, filters, and maximum allowable number of
+    tablets, return selected CDLI numbers.
+
     """
     paths = cdli_catalogue_paths(cdli_dir)
 
@@ -321,9 +332,48 @@ def download_selected_tablet_images(cdli_dir, filters, max_ims=None):
     agree_download_start(len(records), max_ims)
     records = records.iloc[:max_ims]
 
+    cdli_nums = [f'P{val}' for val in
+                 records['id_text'].str.zfill(6).to_list()]
+    return cdli_nums
+
+
+def download_selected_tablet_images(cdli_dir, cdli_list_path, filters,
+                                    max_ims=None):
+    """Downloads tablet artifacts (photographs and line art) in one of two
+    ways:
+        1. Reads CDLI catalogue from directory, applies filters, and downloads
+           artifacts for selected records up to the maximum allowed number.
+        2. Reads a text document of CDLI numbers and downloads artifacts for
+           each tablet on the list.
+
+    If both cdli_dir and cdli_list_path are given, the text document will be
+    given priority.
+
+    Args:
+        cdli_dir (str): Directory containing CDLI data catalogues.
+        cdli_list_path (str): Path to list of CDLI numbers for selected
+            tablets.  
+        filters (dict of str -> list): Maps catalogue column names to a list of
+            required terms.
+        max_ims (int or None): Maximum number of records to download images
+            for; if None, will download images for all filtered records.
+
+    Returns:
+        local_ids: Maps image type to list
+            of CDLI numbers designating successfully downloaded images.
+
+    """
+    if cdli_list_path is not None:
+        cdli_nums = read_tablet_text(cdli_list_path)
+    elif cdli_dir is not None:
+        cdli_nums = select_tablets_from_catalogue(cdli_dir, filters, max_ims)
+    else:
+        raise RuntimeError(('Cannot download data if both "cdli_dir" and'
+                            ' "cdli_list_path" are undefined.  Exiting.'))
+
     make_raw_data_dirs()
 
-    local_ids = download_data_set(records, RAW_DATA_DIR)
+    local_ids = download_data_set(cdli_nums, RAW_DATA_DIR)
 
     return local_ids
 
@@ -334,7 +384,12 @@ if __name__ == '__main__':
     parser.add_argument(
         '--cdli_dir',
         help='Root directory of CDLI data repository.',
-        required=True,
+        )
+
+    parser.add_argument(
+        '--cdli_list_path',
+        help=('Path to text document containing list of tablets (cdli numbers)'
+              'for which images should be downloaded.'),
         )
 
     parser.add_argument(
@@ -367,6 +422,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     cdli_dir = args.cdli_dir
+    cdli_list_path = args.cdli_list_path
     collections = args.collection
     languages = args.language
     preservations = args.preservation
@@ -377,4 +433,4 @@ if __name__ == '__main__':
 
     filters = combine_filters(collections, languages, preservations)
 
-    download_selected_tablet_images(cdli_dir, filters, max_ims)
+    download_selected_tablet_images(cdli_dir, cdli_list_path, filters, max_ims)
