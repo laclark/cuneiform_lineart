@@ -27,6 +27,7 @@ import os
 import time
 from datetime import datetime
 
+from matplotlib import figure
 from matplotlib import pyplot as plt
 
 import lineart_generator.pix2pix.data_processing as dt
@@ -69,14 +70,15 @@ def generate_image(model, test_input, tar):
     display_list = [test_input[0], tar[0], prediction[0]]
     title = ['Input Image', 'Ground Truth', 'Predicted Image']
 
-    fig, axes = plt.subplots(1, 3)
+    fig = figure.Figure()
 
     for i in range(3):
-        axes[i].set_title(title[i])
+        axis = fig.add_subplot(1, 3, i + 1)
+        axis.set_title(title[i])
         # Getting the pixel values in the [0, 1] range to plot.
-        axes[i].imshow(display_list[i] * 0.5 + 0.5)
-        axes[i].set_axis_off()
-    
+        axis.imshow(display_list[i] * 0.5 + 0.5)
+        axis.set_axis_off()
+
     return fig
 
 
@@ -97,8 +99,41 @@ def fig_to_tf_summary(figs):
     return summary_ims
 
 
-@tf.function
-def train_step(input_image, target, epoch):
+def create_summary_figs(summary_writer, test_ds, num_summary_ims, epoch,
+                        global_step, frequency=None):
+    """Generate predicted images and save to tf.summary for monitoring.
+
+    Images are created and saved every epoch or at the given frequency (per
+    number of epochs).
+
+    """
+    if frequency is None or (epoch + 1) % frequency == 0:
+        figs = []
+        for example_input, example_target in test_ds.take(num_summary_ims):
+            figs.append(generate_image(GENERATOR, example_input,
+                        example_target))
+
+        with summary_writer.as_default():
+            tf.summary.image(f"Test data, Epoch {epoch + 1}",
+                             fig_to_tf_summary(figs), step=global_step)
+
+
+def add_losses_to_summary(summary_writer, losses, step):
+    with summary_writer.as_default():
+        for name, loss in losses.items():
+            tf.summary.scalar(name, loss, step=step)
+
+
+def save_checkpoint(checkpoint, epoch, frequency):
+    """Save checkpoint at given frequency."""
+    def name_checkpoint():
+        return os.path.join(checkpoint.dir, f"epoch_{epoch + 1:05d}")
+    if (epoch + 1) % frequency == 0:
+        checkpoint.save(file_prefix=name_checkpoint())
+
+
+def train_step(input_image, target):
+    """Run a single training step and return losses."""
     with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
         gen_output = GENERATOR(input_image, training=True)
 
@@ -124,42 +159,26 @@ def train_step(input_image, target, epoch):
             'disc_loss': disc_loss}    
 
 
-def add_losses_to_summary(summary_writer, losses, step):
-    with summary_writer.as_default():
-        for name, loss in losses.items():
-            tf.summary.scalar(name, loss, step=step)
-
-
-def save_checkpoint(checkpoint, epoch, frequency):
-    def name_checkpoint():
-        return os.path.join(checkpoint.dir, f"epoch_{epoch + 1:05d}")
-    if (epoch + 1) % frequency == 0:
-        checkpoint.save(file_prefix=name_checkpoint())
-
-
 def fit(checkpoint, summary_writer, epochs, train_ds, test_ds, save_frequency):
     global_step = 0
 
     for epoch in range(epochs):
         start = time.time()
 
-        num_summary_ims = 5
-        figs = []
-        for example_input, example_target in test_ds.take(num_summary_ims):
-            figs.append(generate_image(GENERATOR, example_input, example_target))
+        num_summary_ims = 2
+        create_summary_figs(summary_writer, test_ds, num_summary_ims,
+                            epoch, global_step, frequency=save_frequency)
 
-        with summary_writer.as_default():
-            tf.summary.image(f"Test data, Epoch {epoch}", fig_to_tf_summary(figs), step=global_step)
-
-        print("Epoch: ", epoch)
+        print("Epoch: ", epoch + 1)
 
         # Training step
         for n, (input_image, target) in train_ds.enumerate():
             print('.', end='')
             if (n+1) % 100 == 0:
                 print()
-            losses = train_step(input_image, target, epoch)
-            add_losses_to_summary(summary_writer, losses, global_step + n.numpy() + 1)
+            losses = train_step(input_image, target)
+            add_losses_to_summary(summary_writer, losses,
+                                  global_step + n.numpy() + 1)
 
         save_checkpoint(checkpoint, epoch, save_frequency)
 
@@ -171,7 +190,24 @@ def fit(checkpoint, summary_writer, epochs, train_ds, test_ds, save_frequency):
                                                            time.time()-start))
 
 
-def train_lineart_generator(training_dir, model_name, data_dir, train_proportion, epochs, save_frequency):
+def train_lineart_generator(training_dir, model_name, data_dir,
+                            train_proportion, epochs, save_frequency):
+    """
+    Args:
+        training_dir (str): Parent directory containing model training
+            subdirectories.
+        model_name (str): Name of subdirectory holding training artifacts.
+        data_dir (str): Directory containing matched photographs and line art
+            for individual tablet faces.
+        train_proportion (float): Proportion (between 0 and 1) of image
+            examples to use for model training.  Other images will comprise the
+            test dataset.
+        epochs (int): Number of training epochs.
+        save_frequency (int): Save model checkpoint every N epochs.
+
+    Returns:
+        None
+    """
     log_dir, checkpoint_dir = create_training_dir(training_dir, model_name)
 
     train_dataset, test_dataset = dt.prepare_datasets(data_dir, train_proportion)
@@ -223,7 +259,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--save_every_n_epochs',
         help='Save checkpoint every N epochs.',
-        default=5,
+        default=1,
         )
 
     args = parser.parse_args()
@@ -231,9 +267,9 @@ if __name__ == '__main__':
     training_dir = args.training_dir
     model_name = args.model_name
     data_dir = args.data_dir
-    train_proportion = args.train_proportion
-    epochs = args.epochs
-    save_frequency = args.save_every_n_epochs
+    train_proportion = float(args.train_proportion)
+    epochs = int(args.epochs)
+    save_frequency = int(args.save_every_n_epochs)
 
     train_lineart_generator(
         training_dir, 
