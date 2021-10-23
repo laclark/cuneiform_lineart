@@ -20,6 +20,7 @@ Code samples modified slightly to break into separate modules.
 
 """
 
+import math
 import os
 
 import numpy as np
@@ -163,7 +164,6 @@ def normalize(input_image, target_image):
     return input_image, target_image
 
 
-@tf.function()
 def random_jitter(input_image, target_image):
     """Random jitter and horizontal flipping of input images.
 
@@ -306,6 +306,10 @@ def prepare_datasets(data_dir, train_proportion):
 
     test_dataset = tf.data.Dataset.from_tensor_slices(test_paths)
     test_dataset = test_dataset.map(load_image_test)
-    test_dataset = test_dataset.batch(batch_size)
+
+    # Ensure test dataset has at least 50 images for tf.summary image vis.
+    if len(test_paths) < 50:
+        repeat = math.ceil(50/len(test_paths))
+    test_dataset = test_dataset.repeat(repeat).batch(batch_size)
 
     return train_dataset, test_dataset
