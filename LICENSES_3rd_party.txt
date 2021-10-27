@@ -1,0 +1,15 @@
+This repository includes TensorFlow tutorial source code with some
+modifications.
+
+Name: TensorFlow pix2pix
+Retrieved from: https://www.tensorflow.org/tutorials/generative/pix2pix
+Files: cuneiform_lineart/lineart_generator/lineart_generator/pix2pix/*
+License: Apache 2.0
+
+For details, see cuneiform_lineart/lineart_generator/lineart_generator/pix2pix/Apache_LICENSE_2.0.txt
+
+---
+Some included derivative works used for teaching/research purposes are based on
+images collected and shared by the Cuneiform Digital Library Initiative.
+
+Please see https://cdli.ucla.edu/terms-of-use.
