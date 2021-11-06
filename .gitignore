@@ -1,4 +1,4 @@
 /data/
 /models/
-/research_notes/
-/virtual_envs/
+*.egg-info/
+__pycache__/
