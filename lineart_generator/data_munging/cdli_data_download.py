@@ -91,7 +91,7 @@ IM_TYPES = {
 
 curr_path = os.path.abspath(__file__)
 path_sections = curr_path.split(os.path.sep)
-RAW_DATA_DIR = os.path.join(os.path.sep.join(path_sections[:-4]),
+RAW_DATA_DIR = os.path.join(os.path.sep.join(path_sections[:-3]),
                                              'data',
                                              'raw_data')
 

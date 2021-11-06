@@ -3,7 +3,7 @@
 This project is intended to automate the time-intensive process of creating
 line art from a cuneiform tablet via deep learning.
 
-<img src="./images/lineart_gen_schematic.svg">
+<img src="./readme_images/lineart_gen_schematic.svg">
 
 Cuneiform is an early writing system that was used across the Ancient Near
 East, characterized by groups of wedge-shaped signs.  It dates from
@@ -37,7 +37,8 @@ Tensorflow is not included in the requirements.txt, as it can be installed
 either with or without GPU support (more details 
 [here](https://www.tensorflow.org/install)).  Currently this repository does
 not heavily use the GPU, therefore it is fine to run it without enabling GPU
-training.  For CPU-only training, you can install Tensorflow simply by running
+training.  For CPU-only training, you can install Tensorflow simply by running:
+
     pip install tensorflow 
 
 It is recommended to run the following package in a virtual environment (e.g. 
@@ -46,7 +47,6 @@ using venv or virtualenv).
     git clone https://github.com/laclark/cuneiform_lineart.git
     cd cuneiform_lineart
     pip install -r requirements.txt
-    cd lineart_generator
     pip install -e .
 
 ## Quickstart - Training a Toy Model
@@ -60,13 +60,13 @@ beginning of the model's learning process.
 
 From the root directory of the repository:
 
-    cd lineart_generator\lineart_generator
+    cd lineart_generator
 
 Download photographs and line art for these tablets.  This script will create 
 a new directory (*cuneiform_lineart\data\raw_data*), where it will store the
 downloaded photographs and line art for each tablet in a separate subdirectory.
 
-    python data_munging/cdli_data_download.py --cdli_list_path=../../quickstart_tablet_ids.txt
+    python data_munging/cdli_data_download.py --cdli_list_path=../quickstart_tablet_ids.txt
 
 Process the photos and line art into separate tablet faces (front/obverse and
 back/reverse).  Another new directory will be
@@ -96,15 +96,15 @@ If working in a Windows CMD shell, you can delete the incorrect data by running
 the following command.  Double check the file locations and follow the prompt when it
 appears. 
 
-    del /p ..\..\data\processed_data\quickstart_data\lineart_rev\P102635.jpg  ^
-    ..\..\data\processed_data\quickstart_data\lineart_rev\P102650.jpg  ^
-    ..\..\data\processed_data\quickstart_data\photo_rev\P102635.jpg    ^
-    ..\..\data\processed_data\quickstart_data\photo_rev\P102650.jpg
+    del /p ..\data\processed_data\quickstart_data\lineart_rev\P102635.jpg  ^
+    ..\data\processed_data\quickstart_data\lineart_rev\P102650.jpg  ^
+    ..\data\processed_data\quickstart_data\photo_rev\P102635.jpg    ^
+    ..\data\processed_data\quickstart_data\photo_rev\P102650.jpg
 
 Or in a Linux shell, this would be:
 
-    rm ../../data/processed_data/quickstart_data/*rev/P102635.jpg       \
-    ../../data/processed_data/quickstart_data/*rev/P102650.jpg
+    rm ../data/processed_data/quickstart_data/*rev/P102635.jpg       \
+    ../data/processed_data/quickstart_data/*rev/P102650.jpg
 
 Note that you need to delete the line art *and* the photo for the faces that
 were incorrectly processed. 
@@ -113,9 +113,7 @@ were incorrectly processed.
 
 Start the model training.
 
-    python pix2pix/train.py --model_name=quickstart_model   ^
-    --data_dir=../../data/processed_data/quickstart_data    ^
-    --train_proportion=0.8 --epochs=15
+    python pix2pix/train.py --model_name=quickstart_model --data_dir=../data/processed_data/quickstart_data --train_proportion=0.8 --epochs=15
 
 Model training with such a small dataset and for only fifteen epochs means that
 training should take less than five minutes.
@@ -130,13 +128,13 @@ for training.  Go to the root directory of the repository and run:
 
     tensorboard --logdir .
 
-TensorBoard recursively searches for and displays and nested summary files.
+TensorBoard recursively searches for and displays any nested summary files.
 
-Follow the directions to see your model training progress.  It may take a few
-seconds/minutes after training has started for any data to appear on
+Follow the directions to see your model's training progress.  It may take a few
+seconds after training has started for any data to appear on
 TensorBoard.  You should see something like the following screenshots.  
 
-<img src="./images/tensorboard.svg">
+<img src="./readme_images/tensorboard.svg">
 
 If you explore the *TensorBoard Images* tab, you should see that the model has
 been able to learn and produce some basic characteristic structures very
@@ -207,7 +205,7 @@ operations are described in the schematic below.  It is important to note that
 the current algorithm is not particularly robust, so stored training images
 should be examined carefully prior to model training or evaluation.   
 
-<img src="./images/preprocessing.svg">
+<img src="./readme_images/preprocessing.svg">
 
 ### **Building Your Own Data Set**
 

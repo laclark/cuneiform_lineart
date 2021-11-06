@@ -41,7 +41,7 @@ import lineart_generator.pix2pix.generator as gn
 
 curr_path = os.path.abspath(__file__)
 path_sections = curr_path.split(os.path.sep)
-TRAINING_DIR = os.path.join(os.path.sep.join(path_sections[:-4]), 'models')
+TRAINING_DIR = os.path.join(os.path.sep.join(path_sections[:-3]), 'models')
 
 GENERATOR_OPTIMIZER = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
 DISCRIMINATOR_OPTIMIZER = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
