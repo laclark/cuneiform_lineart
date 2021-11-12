@@ -73,6 +73,7 @@ class TestCuneiformQuickStart(unittest.TestCase):
                 'train_proportion': 0.8,
                 'epochs': 1,
                 'save_frequency': 1,
+                'seed_val': 1234,
                 },
             ),
         )

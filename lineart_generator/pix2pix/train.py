@@ -16,7 +16,8 @@
 
 """Main training script for pix2pix.
 
-Code samples modified slightly to break into separate modules.
+Original code samples modified slightly to break into separate modules, and 
+more functions added to improve training recording, reproducibility, etc.
 
 Note: Objects referred to as tf.Tensors may be either
 'EagerTensors' (via eager execution) or standard tensorflow 'Tensors'
@@ -25,12 +26,14 @@ Note: Objects referred to as tf.Tensors may be either
 """
 import argparse
 import io
+import json
 import os
 import time
 from datetime import datetime
 
 from matplotlib import figure
 from matplotlib import pyplot as plt
+import numpy as np
 import tensorflow as tf
 
 from lineart_generator.data_munging.cdli_data_preparation import PROCESSED_DATA_DIR
@@ -58,13 +61,18 @@ def name_model():
 
 
 def create_training_dir(training_dir, model_name):
-    """Paths for storing training checkpoints and summary data."""
-    checkpoint_dir = os.path.join(training_dir,
-                                  model_name,
-                                  'ckpts')
-    log_dir = os.path.join(training_dir,
-                           model_name,
-                           'tf_event_logs')
+    """Make training dir + paths for storing training checkpoints and
+    summary data.
+
+    """
+    model_dir = os.path.join(training_dir, model_name)
+
+    if not os.path.exists(model_dir):
+        os.makedirs(model_dir)
+
+    checkpoint_dir = os.path.join(model_dir, 'ckpts')
+    log_dir = os.path.join(model_dir, 'tf_event_logs')
+
     return log_dir, checkpoint_dir
 
 
@@ -218,8 +226,23 @@ def fit(checkpoint, summary_writer, epochs, train_ds, test_ds, save_frequency):
                                                            time.time()-start))
 
 
+def set_random_seed(seed_val):
+    if seed_val is None:
+        return int(datetime.now().isoformat()[-5:])
+    else:
+        return seed_val
+
+
+def store_seed(seed, path):
+    data = {'seed_value': seed}
+
+    with open(path, 'w') as f:
+        json.dump(data, f)
+
+
 def train_lineart_generator(training_dir, model_name, data_dir,
-                            train_proportion, epochs, save_frequency):
+                            train_proportion, epochs, save_frequency,
+                            seed_val):
     """
     Args:
         training_dir (str): Parent directory containing model training
@@ -232,14 +255,20 @@ def train_lineart_generator(training_dir, model_name, data_dir,
             test dataset.
         epochs (int): Number of training epochs.
         save_frequency (int): Save model checkpoint every N epochs.
+        seed_val (int or None): Seed value for input data train/test splitting.
 
     Returns:
         None
     """
     log_dir, checkpoint_dir = create_training_dir(training_dir, model_name)
 
+    seed = set_random_seed(seed_val)
+    rand_generator = np.random.default_rng(seed=seed)
+    store_seed(seed, os.path.join(training_dir, model_name, 'seed_value.json'))
+
     train_dataset, test_dataset = dt.prepare_datasets(data_dir,
-                                                      train_proportion)
+                                                      train_proportion,
+                                                      rand_generator)
 
     checkpoint = tf.train.Checkpoint(generator_optimizer=GENERATOR_OPTIMIZER,
                                      discriminator_optimizer=DISCRIMINATOR_OPTIMIZER,
@@ -295,6 +324,16 @@ if __name__ == '__main__':
         default=1,
         )
 
+    parser.add_argument(
+        '--seed',
+        help=('A value used to initialize data set splitting/shuffling'
+              ' operations. To recreate specific training/testing data sets,'
+              ' use the same folder of input images and the same seed. If no'
+              ' seed is entered, a seed will be created and stored with the' 
+              ' model.'),
+        default=None,
+        )
+
     args = parser.parse_args()
 
     training_dir = args.training_dir
@@ -304,10 +343,14 @@ if __name__ == '__main__':
     epochs = int(args.epochs)
     save_frequency = int(args.save_every_n_epochs)
 
+    if args.seed is not None:
+        seed = int(args.seed)
+
     train_lineart_generator(
         training_dir,
         model_name,
         data_dir,
         train_proportion,
         epochs,
-        save_frequency)
+        save_frequency,
+        seed_val=seed)

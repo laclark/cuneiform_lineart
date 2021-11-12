@@ -111,12 +111,19 @@ were incorrectly processed.
 
 ### **Train the Model**
 
-Start the model training.
+Start the model training. Use a seed value here so that you can recreate
+exactly the same test and train data sets in the future (though the script
+will create one if you forget!). This can be useful when
+you want to understand why a particular model has performed well or badly, and 
+in general, it is a good habit to make your training as reproducible as
+possible.  
 
-    python pix2pix/train.py --model_name=quickstart_model --data_dir=../data/processed_data/quickstart_data --train_proportion=0.8 --epochs=15
+    python pix2pix/train.py --model_name=quickstart_model --data_dir=../data/processed_data/quickstart_data --train_proportion=0.8 --epochs=15 --seed=1234
 
-Model training with such a small dataset and for only fifteen epochs means that
-training should take less than five minutes.
+Model training should take less than five minutes, since the dataset is so
+small.  At the end of training, model checkpoints, summary files, and 
+*seed_value.json* will be stored in 
+*cuneiform_lineart\models\quickstart_model*.
 
 ### **Monitor Training Progress**
 
@@ -140,7 +147,10 @@ If you explore the *TensorBoard Images* tab, you should see that the model has
 been able to learn and produce some basic characteristic structures very
 quickly: the predominantly white backgrounds, customary horizontal
 black lines and hints of angular black shapes should be visible by about epoch
-10.
+10.  Train the model for longer to see what it learns over time!  However, this
+model will never generalize as well to unseen data as one trained on a much 
+larger data set.  See below for details on how to build your own and continue
+experimenting.
 
 ## Further Information
 

@@ -241,7 +241,7 @@ def get_image_paths(parent_dir):
     return paired_paths
 
 
-def split_datasets(all_paths, train_proportion):
+def split_datasets(all_paths, train_proportion, rand_generator):
     """Randomly assigns tablet faces to training and test sets.
 
     Args:
@@ -260,23 +260,26 @@ def split_datasets(all_paths, train_proportion):
     """
     training_pairs, test_pairs = [], []
 
-    if train_proportion < 1:
-        num_examples = len(all_paths)
+    num_training_examples = min(
+        round(train_proportion * len(all_paths)),
+        len(all_paths))
 
-        assignments = np.random.choice([0, 1], size=num_examples,
-                                       p=[1 - train_proportion,
-                                          train_proportion])
+    num_training_examples = max(1, num_training_examples)
 
-        for assignment, pair in zip(assignments, all_paths):
-            if assignment:
-                training_pairs.append(pair)
-            else:
-                test_pairs.append(pair)
+    rand_generator.shuffle(all_paths)
+    
+    training_pairs = all_paths[:num_training_examples]
+    test_pairs = all_paths[num_training_examples:]
+
+    if train_proportion < 1 and len(test_pairs) == 0:
+        test_pairs.append(training_pairs.pop())
+    elif train_proportion == 1:
+        test_pairs = training_pairs
 
     return training_pairs, test_pairs
 
 
-def prepare_datasets(data_dir, train_proportion):
+def prepare_datasets(data_dir, train_proportion, rand_generator):
     """Create train and test datasets.
 
     Args:
@@ -290,10 +293,13 @@ def prepare_datasets(data_dir, train_proportion):
             images used for model training.
         test_dataset (tf.data.Dataset): Preprocessed and batched
             images used for model testing.
+        rand_generator (np.random.default_rng): Random Generator to drive data
+            set splitting.
 
     """
     paired_paths = get_image_paths(data_dir)
-    train_paths, test_paths = split_datasets(paired_paths, train_proportion)
+    train_paths, test_paths = split_datasets(paired_paths, train_proportion,
+                                             rand_generator)
 
     batch_size = 1   # Suggested by pix2pix authors
     buffer_size = min(100, len(train_paths))
